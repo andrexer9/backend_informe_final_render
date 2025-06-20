@@ -1,0 +1,19 @@
+{
+  "name": "informe-pao",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "docxtemplater": "^3.29.5",
+    "express": "^4.17.1",
+    "firebase-admin": "^11.5.0",
+    "pizzip": "^3.1.5",
+    "uuid": "^8.3.2",
+    "docx-pdf": "^1.0.1",
+    "@google-cloud/storage": "^7.5.0"
+  }
+}
