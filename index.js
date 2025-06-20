@@ -47,7 +47,7 @@ app.post('/generar_informe_final', async (req, res) => {
       actividades[tipo].push(data);
     });
 
-    const content = readFileSync(path.join("templates", 'PAO5_TI_FORMATO_2_template_FINAL.docx'), 'binary');
+    const content = readFileSync(path.join("Templates", 'PAO5_TI_FORMATO_2_template_FINAL.docx'), 'binary');
     const zip = new PizZip(content);
     const doc = new Document(zip, { paragraphLoop: true, linebreaks: true });
 
