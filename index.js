@@ -21,7 +21,7 @@ app.use(express.json());
 
 app.post('/generar', async (req, res) => {
   try {
-    const templatePath = path.join(__dirname, 'Documento sin título.docx');
+    const templatePath = path.join(__dirname, 'documents', 'Documento sin título.docx');
     const content = fs.readFileSync(templatePath, 'binary');
 
     const zip = new PizZip(content);
