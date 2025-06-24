@@ -9,7 +9,7 @@ const serviceAccount = require('./service_account.json');
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
-  storageBucket: 'gs://academico-4a053.firebasestorage.app/documentos_pao'
+  storageBucket: 'gs://academico-4a053.firebasestorage.app'
 });
 
 const bucket = admin.storage().bucket();
