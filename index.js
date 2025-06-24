@@ -9,7 +9,7 @@ const serviceAccount = require('./service_account.json');
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
-  storageBucket: 'academico-4a053.firabasestorage.app'
+  storageBucket: 'gs://academico-4a053.firebasestorage.app/documentos_pao'
 });
 
 const bucket = admin.storage().bucket();
@@ -20,14 +20,13 @@ app.use(express.json());
 
 app.post('/generar', async (req, res) => {
   try {
-    const templatePath = path.join(__dirname, 'documents', 'Documento_sin_titulo.docx');
+    const templatePath = path.join(__dirname, 'documents', 'Documento sin título.docx');
     const content = fs.readFileSync(templatePath, 'binary');
 
     const zip = new PizZip(content);
     const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
 
-    doc.compile();
-    doc.render(req.body);
+    doc.render(req.body); // Solo render, ya no compile ni setData
 
     const buf = doc.getZip().generate({ type: 'nodebuffer' });
 
