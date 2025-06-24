@@ -1,21 +1,17 @@
-
 const express = require('express');
 const cors = require('cors');
+const Docxtemplater = require('docxtemplater');
+const PizZip = require('pizzip');
 const fs = require('fs');
 const path = require('path');
 const admin = require('firebase-admin');
-const { Storage } = require('@google-cloud/storage');
-const PizZip = require('pizzip');
-const Docxtemplater = require('docxtemplater');
-
 const serviceAccount = require('./service_account.json');
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
-  storageBucket: 'academico-4a053.appspot.com',
+  storageBucket: 'academico-4a053.firabasestorage.app'
 });
 
-const db = admin.firestore();
 const bucket = admin.storage().bucket();
 
 const app = express();
@@ -24,69 +20,32 @@ app.use(express.json());
 
 app.post('/generar', async (req, res) => {
   try {
-    const { paoID, tutor } = req.body;
-
-    if (!paoID || !tutor) {
-      return res.status(400).json({ error: 'Faltan parámetros paoID o tutor' });
-    }
-
-    // Obtener las actividades de Firestore
-    const actividadesSnapshot = await db.collection('pao_actividades').orderBy('orden').get();
-
-    const actividades = [];
-    for (const actividadDoc of actividadesSnapshot.docs) {
-      const actividadData = actividadDoc.data();
-      const aportesSnapshot = await actividadDoc.ref.collection('aportaciones_docentes').get();
-
-      const problemas = [];
-      const acciones = [];
-      const resultados = [];
-
-      aportesSnapshot.forEach(aporteDoc => {
-        const aporte = aporteDoc.data();
-        problemas.push(`${aporte.materia}: ${aporte.problemas}`);
-        acciones.push(`${aporte.materia}: ${aporte.acciones}`);
-        resultados.push(`${aporte.materia}: ${aporte.resultados}`);
-      });
-
-      actividades.push({
-        fecha: actividadData.fecha || new Date().toLocaleDateString(),
-        actividad: actividadData.actividad || 'Sin actividad',
-        problemas: problemas.join('\n'),
-        acciones: acciones.join('\n'),
-        resultados: resultados.join('\n'),
-      });
-    }
-
-    // Cargar plantilla
-    const templatePath = path.join(__dirname, 'documents', 'Documento_sin_titulo.docx');
+    const templatePath = path.join(__dirname, 'documents', 'Documento sin título.docx');
     const content = fs.readFileSync(templatePath, 'binary');
+
     const zip = new PizZip(content);
     const doc = new Docxtemplater(zip, { paragraphLoop: true, linebreaks: true });
 
-    // Preparar datos
-    doc.setData({
-      pao: paoID,
-      tutor,
-      actividades,
+    doc.compile();
+    doc.render(req.body);
+
+    const buf = doc.getZip().generate({ type: 'nodebuffer' });
+
+    const fileName = `documentos_pao/PAO_${Date.now()}.docx`;
+    const file = bucket.file(fileName);
+    await file.save(buf, {
+      contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     });
 
-    doc.render();
-    const buffer = doc.getZip().generate({ type: 'nodebuffer' });
-
-    // Guardar en Storage
-    const filename = `documentos_pao/PAO_${Date.now()}.docx`;
-    const file = bucket.file(filename);
-    await file.save(buffer, {
-      metadata: { contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+    const [url] = await file.getSignedUrl({
+      action: 'read',
+      expires: Date.now() + 1000 * 60 * 60 * 24, // 24 horas de validez
     });
 
-    const url = `https://storage.googleapis.com/${bucket.name}/${filename}`;
     res.json({ url });
-    
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'Error al generar el documento' });
+    res.status(500).send('Error al generar el documento');
   }
 });
 
