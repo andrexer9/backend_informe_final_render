@@ -5,6 +5,7 @@ from docxtpl import DocxTemplate
 import os
 import tempfile
 import cloudconvert
+import requests
 
 app = Flask(__name__)
 
@@ -58,18 +59,18 @@ def generar_pao():
 
             job = cloudconvert.Job.create(payload={
                 "tasks": {
-                    "import-1": {
+                    "import-my-file": {
                         "operation": "import/upload"
                     },
-                    "convert-1": {
+                    "convert-my-file": {
                         "operation": "convert",
-                        "input": "import-1",
+                        "input": "import-my-file",
                         "input_format": "docx",
                         "output_format": "pdf"
                     },
-                    "export-1": {
+                    "export-my-file": {
                         "operation": "export/url",
-                        "input": "convert-1"
+                        "input": "convert-my-file"
                     }
                 }
             })
@@ -79,16 +80,14 @@ def generar_pao():
             upload_params = upload_task['result']['form']['parameters']
 
             with open(docx_path, 'rb') as f:
-                files = {'file': (os.path.basename(docx_path), f)}
-                response = cloudconvert.helpers._requests_session.post(upload_url, data=upload_params, files=files)
+                response = requests.post(upload_url, data=upload_params, files={'file': f})
                 response.raise_for_status()
 
             job = cloudconvert.Job.wait(id=job['id'])
 
-            export_task = [t for t in job['tasks'] if t['name'] == 'export-1'][0]
+            export_task = [t for t in job['tasks'] if t['operation'] == 'export/url'][0]
             pdf_url = export_task['result']['files'][0]['url']
-
-            pdf_content = cloudconvert.helpers._requests_session.get(pdf_url).content
+            pdf_content = requests.get(pdf_url).content
 
             with open(pdf_path, 'wb') as f:
                 f.write(pdf_content)
