@@ -4,7 +4,7 @@ from firebase_admin import credentials, firestore, storage
 from docxtpl import DocxTemplate
 import os
 import tempfile
-import requests
+import cloudconvert
 
 app = Flask(__name__)
 
@@ -13,7 +13,7 @@ firebase_admin.initialize_app(cred, {
     'storageBucket': 'gs://academico-4a053.firebasestorage.app'
 })
 db = firestore.client()
-CLOUDCONVERT_API_KEY = os.environ['CLOUDCONVERT_API_KEY']
+cloudconvert.configure(api_key=os.environ['CLOUDCONVERT_API_KEY'])
 
 @app.route('/generar_pao', methods=['POST'])
 def generar_pao():
@@ -56,20 +56,39 @@ def generar_pao():
             doc.render(context)
             doc.save(docx_path)
 
+            job = cloudconvert.Job.create(payload={
+                "tasks": {
+                    "import-1": {
+                        "operation": "import/upload"
+                    },
+                    "convert-1": {
+                        "operation": "convert",
+                        "input": "import-1",
+                        "input_format": "docx",
+                        "output_format": "pdf"
+                    },
+                    "export-1": {
+                        "operation": "export/url",
+                        "input": "convert-1"
+                    }
+                }
+            })
+
+            upload_task = job['tasks'][0]
+            upload_url = upload_task['result']['form']['url']
+            upload_params = upload_task['result']['form']['parameters']
+
             with open(docx_path, 'rb') as f:
-                r = requests.post(
-                    'https://api.cloudconvert.com/v2/convert',
-                    headers={'Authorization': f'Bearer {CLOUDCONVERT_API_KEY}'},
-                    files={'file': f},
-                    data={'inputformat': 'docx', 'outputformat': 'pdf'}
-                )
-                if r.status_code != 200:
-                    return jsonify({'error': f'Error CloudConvert: {r.text}'}), 500
+                files = {'file': (os.path.basename(docx_path), f)}
+                response = cloudconvert.helpers._requests_session.post(upload_url, data=upload_params, files=files)
+                response.raise_for_status()
 
+            job = cloudconvert.Job.wait(id=job['id'])
 
-                result = r.json()
-                pdf_url = result['data']['url']
-                pdf_content = requests.get(pdf_url).content
+            export_task = [t for t in job['tasks'] if t['name'] == 'export-1'][0]
+            pdf_url = export_task['result']['files'][0]['url']
+
+            pdf_content = cloudconvert.helpers._requests_session.get(pdf_url).content
 
             with open(pdf_path, 'wb') as f:
                 f.write(pdf_content)
