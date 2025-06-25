@@ -8,12 +8,12 @@ import requests
 
 app = Flask(__name__)
 
-cred = credentials.Certificate('ruta/service_account.json')
+cred = credentials.Certificate('/etc/secrets/service_account.json')
 firebase_admin.initialize_app(cred, {
     'storageBucket': 'gs://academico-4a053.firebasestorage.app'
 })
 db = firestore.client()
-CLOUDCONVERT_API_KEY = 'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiIxIiwianRpIjoiYTQ3MGY3ZjgwNWIxM2EzNDU5ZDIyOGM2NTBiNzBjYWUxM2FlZWM4YjliNTEzZDFmYTAxZDJlOWU5NzhlODJhNDdjNjhhZmU0YWJiNTUzNjMiLCJpYXQiOjE3NTA0MTgyMjAuNTY3NDk2LCJuYmYiOjE3NTA0MTgyMjAuNTY3NDk3LCJleHAiOjQ5MDYwOTE4MjAuNTYyODg2LCJzdWIiOiI3MjI1MjkzNCIsInNjb3BlcyI6WyJ0YXNrLnJlYWQiLCJ0YXNrLndyaXRlIl19.TCCkzifTXS_le-ljQCDeLFdUKYkTH1w5AWKQnTnMlUhFG3eYVYlbcypn0d3rQ0qj_77UxisFl4sEsrdwryVudrx9JPsIvHqS_Pf13tGpHykhG9HBfThlR6rRYFCAOI7sDViTMj4HDoTFTGa6ZQxSY5OWSrgNJd1bCDMEWKNK_L3HyzotaoHZzEPCZ96AAVEPW4InJx60PB8nJXTWWGvL2c0ZF6UEZAORT4KBIh2ltXJ6wzZWH4XTcWm1uTve3yJn2eNhf1p0kQpIjJA0zATB8sE2PahwT0mjK7Cipjn3mg_02Z5gqtIfPO2RXZw4KbSwg2uRcpdT61vBhig1gXF3Q0QRaSIw2v_7AVloh0NevMvuSjLWCSJpx0_iQ64NZlZKj5sKzNWVC9KR4mox-f8m9JEP-oAedgRJ5sFYEZxlyANugWZZa7_64XcuQoaieUorPWmzQf25QzWgGkhqpHfkTTV6b_UpqfbWV8qt2UXyGlesNxgraf-xzocJyA28AHmk-eDYR1CMfW3xeakR6qYg1Zhrmh-eDRorzE-4SLpKLYj6D6ZhQtIlEhEi1_GCu2xMaMUJblBJNNhN2vPC9rxfgA8_oPDdDQYgTbqX69xRDB1QrB9r1u8FnBaqzPUOlrvgnMWjjXm_difW0HFFRLpIgx1hrjN8NddLUcLUIxdZ4aw'
+CLOUDCONVERT_API_KEY = os.environ['CLOUDCONVERT_API_KEY']
 
 @app.route('/generar_pao', methods=['POST'])
 def generar_pao():
@@ -56,7 +56,6 @@ def generar_pao():
             doc.render(context)
             doc.save(docx_path)
 
-            # Convertir a PDF con CloudConvert
             with open(docx_path, 'rb') as f:
                 r = requests.post(
                     'https://api.cloudconvert.com/v2/convert',
