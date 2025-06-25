@@ -64,7 +64,8 @@ def generar_pao():
                     data={'inputformat': 'docx', 'outputformat': 'pdf'}
                 )
                 if r.status_code != 200:
-                    return jsonify({'error': 'Error al convertir a PDF'}), 500
+                    return jsonify({'error': f'Error CloudConvert: {r.text}'}), 500
+
 
                 result = r.json()
                 pdf_url = result['data']['url']
