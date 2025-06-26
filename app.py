@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, send_file
 from docxtpl import DocxTemplate
 import os
 import tempfile
@@ -8,11 +8,9 @@ app = Flask(__name__)
 @app.route('/prueba_docx', methods=['GET'])
 def prueba_docx():
     try:
-        print("Ruta absoluta del .docx:", os.path.abspath('plantillas/formato_final.docx'))
         doc = DocxTemplate('plantillas/formato_final.docx')
 
-        # Diccionario de prueba simula los datos que vendrían de Firestore
-        context = {
+        context = { 
             'pao': '5',
             'paralelo': 'A',
             'carrera': 'Tecnologías de la Información',
@@ -28,11 +26,9 @@ def prueba_docx():
             'recomendacion_3': 'Refuerzo académico focalizado.'
         }
 
-        # 7 materias de prueba
         for i in range(1, 8):
             context[f'materia_{i}'] = f'Materia {i}'
 
-        # 10 actividades, cada una con 7 materias
         for num in range(1, 11):
             context[f'fecha_{num}'] = f'0{num}/06/2025'
             for m in range(1, 8):
@@ -40,22 +36,16 @@ def prueba_docx():
                 context[f'observacion_accionesDeMejora_{num}_m{m}'] = f'Acción {m} actividad {num}'
                 context[f'observacion_resultadosObtenidos_{num}_m{m}'] = f'Resultado {m} actividad {num}'
 
-        print("Contexto de prueba generado correctamente.")
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            docx_path = os.path.join(tmpdir, 'prueba_pao.docx')
-
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as tmpfile:
             doc.render(context)
-            doc.save(docx_path)
+            doc.save(tmpfile.name)
+            tmpfile_path = tmpfile.name
 
-            return jsonify({'mensaje': 'Documento generado correctamente', 'ruta_local': docx_path}), 200
+        return send_file(tmpfile_path, as_attachment=True, download_name='prueba_pao.docx')
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return {'error': str(e)}, 500
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
-
-
-
