@@ -1,91 +1,54 @@
-from flask import Flask, request, jsonify
-import firebase_admin
-from firebase_admin import credentials, firestore, storage
+from flask import Flask, jsonify
 from docxtpl import DocxTemplate
 import os
 import tempfile
 
 app = Flask(__name__)
 
-cred = credentials.Certificate('/etc/secrets/service_account.json')
-firebase_admin.initialize_app(cred, {
-    'storageBucket': 'academico-4a053.firebasestorage.app'
-})
-db = firestore.client()
-bucket = storage.bucket()
-
-@app.route('/generar_pao', methods=['POST'])
-def generar_pao():
-    data = request.get_json()
-    pao_id = data.get('paoID')
-    if not pao_id:
-        return jsonify({'error': 'Falta el paoID'}), 400
-
+@app.route('/prueba_docx', methods=['GET'])
+def prueba_docx():
     try:
-        doc_pao = db.collection('PAOs').document(pao_id).get()
-        if not doc_pao.exists:
-            return jsonify({'error': 'PAO no encontrado'}), 404
-
-        pao_data = doc_pao.to_dict()
-
-        actividades_ref = db.collection('PAOs').document(pao_id).collection('actividades')
-        actividades_docs = {doc.id: doc.to_dict() for doc in actividades_ref.stream()}
-
         print("Ruta absoluta del .docx:", os.path.abspath('plantillas/formato_final.docx'))
         doc = DocxTemplate('plantillas/formato_final.docx')
 
+        # Diccionario de prueba simula los datos que vendrían de Firestore
         context = {
-            'pao': pao_data.get('pao', ''),
-            'paralelo': pao_data.get('paralelo', ''),
-            'carrera': pao_data.get('carrera', ''),
-            'ciclo': pao_data.get('ciclo', ''),
-            'nombre_tutor': pao_data.get('nombre_tutor', ''),
-            'nombre_aprobado_por': pao_data.get('nombre_aprobado_por', ''),
-            'fecha_presentacion_doc': pao_data.get('fecha_presentacion_doc', ''),
-            'conclusion_1': pao_data.get('conclusion_1', ''),
-            'conclusion_2': pao_data.get('conclusion_2', ''),
-            'conclusion_3': pao_data.get('conclusion_3', ''),
-            'recomendacion_1': pao_data.get('recomendacion_1', ''),
-            'recomendacion_2': pao_data.get('recomendacion_2', ''),
-            'recomendacion_3': pao_data.get('recomendacion_3', '')
+            'pao': '5',
+            'paralelo': 'A',
+            'carrera': 'Tecnologías de la Información',
+            'ciclo': '1',
+            'nombre_tutor': 'Juan Pérez',
+            'nombre_aprobado_por': 'Maria García',
+            'fecha_presentacion_doc': '26/06/2025',
+            'conclusion_1': 'Mejora continua observada.',
+            'conclusion_2': 'Participación estudiantil alta.',
+            'conclusion_3': 'Falta seguimiento en algunos casos.',
+            'recomendacion_1': 'Incorporar talleres prácticos.',
+            'recomendacion_2': 'Motivar la asistencia.',
+            'recomendacion_3': 'Refuerzo académico focalizado.'
         }
 
-        # Obtener las materias desde el PAO, completar hasta 7 posiciones con vacío si faltan
-        materias = pao_data.get('materias', [])
-        for idx in range(7):
-            pos = idx + 1
-            context[f'materia_{pos}'] = materias[idx] if idx < len(materias) else ''
+        # 7 materias de prueba
+        for i in range(1, 8):
+            context[f'materia_{i}'] = f'Materia {i}'
 
-        # Recorrer las 10 actividades
+        # 10 actividades, cada una con 7 materias
         for num in range(1, 11):
-            num_str = str(num)
-            actividad = actividades_docs.get(num_str, {})
-            context[f'fecha_{num}'] = actividad.get('fecha', '')
+            context[f'fecha_{num}'] = f'0{num}/06/2025'
+            for m in range(1, 8):
+                context[f'observacion_problemasDetectados_{num}_m{m}'] = f'Problema {m} actividad {num}'
+                context[f'observacion_accionesDeMejora_{num}_m{m}'] = f'Acción {m} actividad {num}'
+                context[f'observacion_resultadosObtenidos_{num}_m{m}'] = f'Resultado {m} actividad {num}'
 
-            materias_actividad = actividad.get('materias', [])
-            for idx in range(7):
-                pos = idx + 1
-                materia_nombre = materias[idx] if idx < len(materias) else ''
-                materia_data = next((m for m in materias_actividad if m.get('nombre') == materia_nombre), None)
-
-                context[f'observacion_problemasDetectados_{num}_m{pos}'] = materia_data.get('problemasDetectados', '') if materia_data else ''
-                context[f'observacion_accionesDeMejora_{num}_m{pos}'] = materia_data.get('accionesMejora', '') if materia_data else ''
-                context[f'observacion_resultadosObtenidos_{num}_m{pos}'] = materia_data.get('resultadosObtenidos', '') if materia_data else ''
-
-        if os.environ.get("FLASK_ENV") == "development":
-            print(context)
+        print("Contexto de prueba generado correctamente.")
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            docx_path = os.path.join(tmpdir, f'{pao_id}.docx')
+            docx_path = os.path.join(tmpdir, 'prueba_pao.docx')
 
             doc.render(context)
             doc.save(docx_path)
 
-            blob = bucket.blob(f'documentos_pao/{pao_id}.docx')
-            blob.upload_from_filename(docx_path)
-            blob.make_public()
-
-            return jsonify({'url_docx': blob.public_url}), 200
+            return jsonify({'mensaje': 'Documento generado correctamente', 'ruta_local': docx_path}), 200
 
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -93,5 +56,6 @@ def generar_pao():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
 
