@@ -1,3 +1,47 @@
+from flask import Flask, request, jsonify
+import firebase_admin
+from firebase_admin import credentials, firestore, storage
+from docxtpl import DocxTemplate
+import os
+import tempfile
+import logging
+from datetime import datetime
+
+# Configuración básica de logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+app = Flask(__name__)
+
+# Inicialización de Firebase
+try:
+    cred = credentials.Certificate('/etc/secrets/service_account.json')
+    firebase_admin.initialize_app(cred, {
+        'storageBucket': 'academico-4a053.firebasestorage.app'
+    })
+    db = firestore.client()
+    logger.info("Firebase inicializado correctamente")
+except Exception as e:
+    logger.error(f"Error al inicializar Firebase: {str(e)}")
+    raise
+
+def process_materias(materias_data):
+    """Procesa la estructura de materias que puede venir en diferentes formatos"""
+    if isinstance(materias_data, list):
+        return materias_data
+    elif isinstance(materias_data, dict):
+        # Si es diccionario, extraemos las materias ordenadas por clave numérica
+        return [materias_data[key] for key in sorted(materias_data.keys()) 
+                if key.isdigit() and isinstance(materias_data[key], str)]
+    return []
+
+def validate_pao_data(pao_data):
+    """Valida los datos mínimos requeridos del PAO"""
+    required_fields = ['pao', 'paralelo', 'materias']
+    missing_fields = [field for field in required_fields if field not in pao_data]
+    if missing_fields:
+        raise ValueError(f"Campos requeridos faltantes: {', '.join(missing_fields)}")
+
 @app.route('/generar_pao', methods=['POST'])
 def generar_pao():
     data = request.get_json()
