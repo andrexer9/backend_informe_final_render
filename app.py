@@ -9,7 +9,7 @@ app = Flask(__name__)
 
 cred = credentials.Certificate('/etc/secrets/service_account.json')
 firebase_admin.initialize_app(cred, {
-    'storageBucket': 'academico-4a053.firebasestorage.app'
+    'storageBucket': 'academico-4a053.appspot.com'
 })
 db = firestore.client()
 
@@ -65,6 +65,8 @@ def generar_pao():
 
         with tempfile.TemporaryDirectory() as tmpdir:
             docx_path = os.path.join(tmpdir, f'{pao_id}.docx')
+
+            print(context)  # Mostrar el diccionario completo antes de renderizar
 
             doc.render(context)
             doc.save(docx_path)
