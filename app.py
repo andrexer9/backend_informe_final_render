@@ -29,6 +29,7 @@ def generar_pao():
 
         actividades = db.collection('PAOs').document(pao_id).collection('actividades').stream()
 
+        print("Ruta absoluta del .docx:", os.path.abspath('plantillas/formato_prueba.docx'))
         doc = DocxTemplate('plantillas/formato_prueba.docx')
 
         context = {
