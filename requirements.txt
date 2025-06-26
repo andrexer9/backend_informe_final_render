@@ -1,5 +1,5 @@
-flask
-firebase-admin
-docxtpl
-requests
-cloudconvert
+setuptools==80.0.0  # Pin to version before pkg_resources removal
+python-docx>=0.8.11
+docxtpl>=0.16.6
+firebase-admin>=6.2.0
+flask>=2.3.2
