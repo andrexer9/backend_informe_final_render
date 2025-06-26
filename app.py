@@ -157,8 +157,9 @@ def generar_pao():
             }), 200
 
     except Exception as e:
-        logger.error(f"Error al generar PAO: {str(e)}", exc_info=True)
-        return jsonify({'error': f"Error al generar el documento: {str(e)}"}), 500
-        if __name__ == '__main__':
-        port = int(os.environ.get("PORT", 5000))
-        app.run(host='0.0.0.0', port=port)
+    logger.error(f"Error al generar PAO: {str(e)}", exc_info=True)
+    return jsonify({'error': f"Error al generar el documento: {str(e)}"}), 500
+
+if __name__ == '__main__':
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
