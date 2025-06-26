@@ -34,18 +34,34 @@ def generar_pao():
         context = {
             'pao': pao_data.get('pao'),
             'paralelo': pao_data.get('paralelo'),
-            'nombre_tutor': 'Tutor asignado',
-            'materias': pao_data.get('materias', [])
+            'ciclo': pao_data.get('ciclo', ''),
+            'nombre_tutor': pao_data.get('nombre_tutor', ''),
+            'nombre_aprobado_por': pao_data.get('nombre_aprobado_por', ''),
+            'fecha_presentacion_doc': pao_data.get('fecha_presentacion_doc', ''),
+            'conclusion_1': pao_data.get('conclusion_1', ''),
+            'conclusion_2': pao_data.get('conclusion_2', ''),
+            'conclusion_3': pao_data.get('conclusion_3', ''),
+            'recomendacion_1': pao_data.get('recomendacion_1', ''),
+            'recomendacion_2': pao_data.get('recomendacion_2', ''),
+            'recomendacion_3': pao_data.get('recomendacion_3', '')
         }
+
+        materias = pao_data.get('materias', [])
 
         for actividad in actividades:
             act = actividad.to_dict()
             num = act['numeroActividad']
-            for idx, materia in enumerate(act['materias']):
-                n_materia = f'm{idx+1}'
-                context[f'observacion_problemasDetectados_{num}_{n_materia}'] = materia.get('problemasDetectados', '')
-                context[f'observacion_accionesDeMejora_{num}_{n_materia}'] = materia.get('accionesMejora', '')
-                context[f'observacion_resultadosObtenidos_{num}_{n_materia}'] = materia.get('resultadosObtenidos', '')
+
+            context[f'fecha_{num}'] = act.get('fecha', '')
+
+            for idx, materia in enumerate(materias):
+                pos = idx + 1
+                materia_data = next((m for m in act['materias'] if m['nombre'] == materia), None)
+
+                context[f'materia_{pos}'] = materia
+                context[f'observacion_problemasDetectados_{num}_m{pos}'] = materia_data.get('problemasDetectados', '') if materia_data else ''
+                context[f'observacion_accionesDeMejora_{num}_m{pos}'] = materia_data.get('accionesMejora', '') if materia_data else ''
+                context[f'observacion_resultadosObtenidos_{num}_m{pos}'] = materia_data.get('resultadosObtenidos', '') if materia_data else ''
 
         with tempfile.TemporaryDirectory() as tmpdir:
             docx_path = os.path.join(tmpdir, f'{pao_id}.docx')
@@ -66,4 +82,3 @@ def generar_pao():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
-
