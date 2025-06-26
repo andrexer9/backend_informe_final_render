@@ -29,7 +29,7 @@ def generar_pao():
 
         actividades = db.collection('PAOs').document(pao_id).collection('actividades').stream()
 
-        doc = DocxTemplate('plantillas/formato_final.docx')
+        doc = DocxTemplate('plantillas/formato_prueba.docx')
 
         context = {
             'pao': pao_data.get('pao'),
