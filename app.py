@@ -36,6 +36,11 @@ def prueba_docx():
                 context[f'observacion_accionesDeMejora_{num}_m{m}'] = f'Acción {m} actividad {num}'
                 context[f'observacion_resultadosObtenidos_{num}_m{m}'] = f'Resultado {m} actividad {num}'
 
+        print("\n----- CONTENIDO DEL CONTEXT -----")
+        for k, v in context.items():
+            print(f"{k}: {v}")
+        print("----- FIN DEL CONTEXT -----\n")
+
         with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as tmpfile:
             doc.render(context)
             doc.save(tmpfile.name)
