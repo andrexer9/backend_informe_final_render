@@ -28,7 +28,8 @@ def generar_pao():
 
         pao_data = doc_pao.to_dict()
 
-        actividades = db.collection('PAOs').document(pao_id).collection('actividades').stream()
+        actividades_ref = db.collection('PAOs').document(pao_id).collection('actividades')
+        actividades_docs = {doc.id: doc.to_dict() for doc in actividades_ref.stream()}
 
         print("Ruta absoluta del .docx:", os.path.abspath('plantillas/formato_final.docx'))
         doc = DocxTemplate('plantillas/formato_final.docx')
@@ -49,20 +50,24 @@ def generar_pao():
             'recomendacion_3': pao_data.get('recomendacion_3', '')
         }
 
+        # Obtener las materias desde el PAO, completar hasta 7 posiciones con vacío si faltan
         materias = pao_data.get('materias', [])
+        for idx in range(7):
+            pos = idx + 1
+            context[f'materia_{pos}'] = materias[idx] if idx < len(materias) else ''
 
-        for actividad in actividades:
-            act = actividad.to_dict()
-            num = actividad.id  # El ID del documento de actividad es el número
+        # Recorrer las 10 actividades
+        for num in range(1, 11):
+            num_str = str(num)
+            actividad = actividades_docs.get(num_str, {})
+            context[f'fecha_{num}'] = actividad.get('fecha', '')
 
-            context[f'fecha_{num}'] = act.get('fecha', '')
-
-            materias_actividad = act.get('materias', [])
-            for idx, materia in enumerate(materias):
+            materias_actividad = actividad.get('materias', [])
+            for idx in range(7):
                 pos = idx + 1
-                materia_data = next((m for m in materias_actividad if m.get('nombre') == materia), None)
+                materia_nombre = materias[idx] if idx < len(materias) else ''
+                materia_data = next((m for m in materias_actividad if m.get('nombre') == materia_nombre), None)
 
-                context[f'materia_{pos}'] = materia
                 context[f'observacion_problemasDetectados_{num}_m{pos}'] = materia_data.get('problemasDetectados', '') if materia_data else ''
                 context[f'observacion_accionesDeMejora_{num}_m{pos}'] = materia_data.get('accionesMejora', '') if materia_data else ''
                 context[f'observacion_resultadosObtenidos_{num}_m{pos}'] = materia_data.get('resultadosObtenidos', '') if materia_data else ''
@@ -88,4 +93,5 @@ def generar_pao():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
 
