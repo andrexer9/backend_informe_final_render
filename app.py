@@ -11,7 +11,7 @@ app = Flask(__name__)
 
 cred = credentials.Certificate('/etc/secrets/service_account.json')
 firebase_admin.initialize_app(cred, {
-    'storageBucket': 'academico-4a053.appspot.com'
+    storageBucket: 'academico-4a053.appspot.com'
 })
 db = firestore.client()
 cloudconvert.configure(api_key=os.environ['CLOUDCONVERT_API_KEY'])
