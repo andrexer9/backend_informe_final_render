@@ -1,56 +1,53 @@
-from flask import Flask, send_file
+from flask import Flask, request, jsonify
 from docxtpl import DocxTemplate
+import firebase_admin
+from firebase_admin import credentials, storage
 import os
 import tempfile
 
 app = Flask(__name__)
 
-@app.route('/prueba_docx', methods=['GET'])
-def prueba_docx():
+# Inicializar Firebase
+cred = credentials.Certificate('/etc/secrets/service_account.json')
+firebase_admin.initialize_app(cred, {
+    'storageBucket': 'academico-4a053.firebasestorage.app'
+})
+bucket = storage.bucket()
+
+
+@app.route('/')
+def home():
+    return '✅ API de generación de Formato PAO funcionando'
+
+
+@app.route('/generar-pao-docx', methods=['POST'])
+def generar_pao_docx():
+    """
+    Espera un JSON con todo el contexto PAO.
+    Devuelve el enlace público del `.docx` en Firebase Storage.
+    """
     try:
-        doc = DocxTemplate('plantillas/formato_final.docx')
+        contexto = request.json
 
-        context = { 
-            'pao': '5',
-            'paralelo': 'A',
-            'carrera': 'Tecnologías de la Información',
-            'ciclo': '1',
-            'nombre_tutor': 'Juan Pérez',
-            'nombre_aprobado_por': 'Maria García',
-            'fecha_presentacion_doc': '26/06/2025',
-            'conclusion_1': 'Mejora continua observada.',
-            'conclusion_2': 'Participación estudiantil alta.',
-            'conclusion_3': 'Falta seguimiento en algunos casos.',
-            'recomendacion_1': 'Incorporar talleres prácticos.',
-            'recomendacion_2': 'Motivar la asistencia.',
-            'recomendacion_3': 'Refuerzo académico focalizado.'
-        }
+        doc = DocxTemplate("plantilla/formato_pao_limpio_doble_llave.docx")
+        doc.render(contexto)
 
-        for i in range(1, 8):
-            context[f'materia_{i}'] = f'Materia {i}'
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
+            doc.save(tmp.name)
+            tmp_path = tmp.name
 
-        for num in range(1, 11):
-            context[f'fecha_{num}'] = f'0{num}/06/2025'
-            for m in range(1, 8):
-                context[f'observacion_problemasDetectados_{num}_m{m}'] = f'Problema {m} actividad {num}'
-                context[f'observacion_accionesDeMejora_{num}_m{m}'] = f'Acción {m} actividad {num}'
-                context[f'observacion_resultadosObtenidos_{num}_m{m}'] = f'Resultado {m} actividad {num}'
+        blob = bucket.blob(f'documentos_pao/{contexto.get("pao_id", "pao_generico")}.docx')
+        blob.upload_from_filename(tmp_path)
+        blob.make_public()
 
-        print("\n----- CONTENIDO DEL CONTEXT -----")
-        for k, v in context.items():
-            print(f"{k}: {v}")
-        print("----- FIN DEL CONTEXT -----\n")
-
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.docx') as tmpfile:
-            doc.render(context)
-            doc.save(tmpfile.name)
-            tmpfile_path = tmpfile.name
-
-        return send_file(tmpfile_path, as_attachment=True, download_name='prueba_pao.docx')
+        return jsonify({'url_docx': blob.public_url}), 200
 
     except Exception as e:
-        return {'error': str(e)}, 500
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5000))
+    port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
