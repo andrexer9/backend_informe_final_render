@@ -29,7 +29,7 @@ def generar_pao_docx():
     try:
         contexto = request.json
 
-        doc = DocxTemplate("plantillas/plantillagod.docx")
+        doc = DocxTemplate("plantillas/plantillafinal.docx")
         doc.render(contexto)
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
