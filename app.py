@@ -66,7 +66,7 @@ def generar_pao_directo():
                 contexto[f'observacion_resultadosObtenidos_{num}_m{idx + 1}'] = materia_data.get('resultadosObtenidos', '') if materia_data else ''
 
         # Generar el documento
-        doc = DocxTemplate("plantilla/plantillafinal.docx")
+        doc = DocxTemplate("plantillas/plantillafinal.docx")
         doc.render(contexto)
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
