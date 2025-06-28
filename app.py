@@ -9,7 +9,7 @@ app = Flask(__name__)
 
 cred = credentials.Certificate('/etc/secrets/service_account.json')
 firebase_admin.initialize_app(cred, {
-    'storageBucket': 'academico-4a053.firebasestorage.app'
+    'storageBucket': 'academico-4a053.appspot.com'
 })
 db = firestore.client()
 bucket = storage.bucket()
@@ -29,14 +29,22 @@ def generar_pao_directo():
 
         pao_data = doc_pao.to_dict()
         materias = pao_data.get('materias', [])
+        paralelos = pao_data.get('paralelos', [])
+        paralelos_str = '-'.join(paralelos) if paralelos else ''
+
+        # Buscar tutor asignado a este PAO
+        tutor_query = db.collection('usuarios').where('paoID', '==', pao_id).where('rol', '==', 'tutor').limit(1).get()
+        if not tutor_query:
+            return jsonify({'error': 'No se encontró tutor asignado a este PAO'}), 404
+        nombre_tutor = tutor_query[0].to_dict().get('nombre', '')
 
         contexto = {
             'pao_id': pao_id,
             'pao': pao_data.get('pao', ''),
-            'paralelo': pao_data.get('paralelo', ''),
+            'paralelo': paralelos_str,
             'carrera': pao_data.get('carrera', ''),
             'ciclo': pao_data.get('ciclo', ''),
-            'nombre_tutor': pao_data.get('nombre_tutor', ''),
+            'nombre_tutor': nombre_tutor,
             'nombre_aprobado_por': pao_data.get('nombre_aprobado_por', ''),
             'fecha_presentacion_doc': pao_data.get('fecha_presentacion_doc', ''),
             'conclusion_1': pao_data.get('conclusion_1', ''),
@@ -71,7 +79,7 @@ def generar_pao_directo():
                 contexto[f'observacion_accionesDeMejora_{num}_m{idx + 1}'] = materia_data.get('accionesMejora', '') if materia_data else ''
                 contexto[f'observacion_resultadosObtenidos_{num}_m{idx + 1}'] = materia_data.get('resultadosObtenidos', '') if materia_data else ''
 
-        doc = DocxTemplate("plantillas/plantillafinal.docx")
+        doc = DocxTemplate("plantilla/plantillafinal.docx")
         doc.render(contexto)
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
