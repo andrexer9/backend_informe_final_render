@@ -62,7 +62,10 @@ def generar_pao_directo():
 
             for idx in range(7):
                 nombre_materia = materias[idx] if idx < len(materias) else ''
-                materia_data = next((m for m in materias_actividad if m.get('nombre') == nombre_materia), None)
+                materia_data = next(
+                    (m for m in materias_actividad if m.get('nombre', '').strip().lower() == nombre_materia.strip().lower()),
+                    None
+                )
 
                 contexto[f'observacion_problemasDetectados_{num}_m{idx + 1}'] = materia_data.get('problemasDetectados', '') if materia_data else ''
                 contexto[f'observacion_accionesDeMejora_{num}_m{idx + 1}'] = materia_data.get('accionesMejora', '') if materia_data else ''
