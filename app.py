@@ -50,13 +50,16 @@ def generar_pao_directo():
         for idx in range(7):
             contexto[f'materia_{idx + 1}'] = materias[idx] if idx < len(materias) else ''
 
-        actividades_ref = db.collection('PAOs').document(pao_id).collection('actividades').stream()
-        for actividad in actividades_ref:
-            act_data = actividad.to_dict()
-            num = actividad.id
+        for num in range(1, 11):
+            actividad_ref = db.collection('PAOs').document(pao_id).collection('actividades').document(str(num)).get()
+            if actividad_ref.exists:
+                act_data = actividad_ref.to_dict()
+                contexto[f'fecha_{num}'] = act_data.get('fecha', '')
+                materias_actividad = act_data.get('materias', [])
+            else:
+                contexto[f'fecha_{num}'] = ''
+                materias_actividad = []
 
-            contexto[f'fecha_{num}'] = act_data.get('fecha', '')
-            materias_actividad = act_data.get('materias', [])
             for idx in range(7):
                 nombre_materia = materias[idx] if idx < len(materias) else ''
                 materia_data = next((m for m in materias_actividad if m.get('nombre') == nombre_materia), None)
@@ -65,7 +68,6 @@ def generar_pao_directo():
                 contexto[f'observacion_accionesDeMejora_{num}_m{idx + 1}'] = materia_data.get('accionesMejora', '') if materia_data else ''
                 contexto[f'observacion_resultadosObtenidos_{num}_m{idx + 1}'] = materia_data.get('resultadosObtenidos', '') if materia_data else ''
 
-        # Generar el documento
         doc = DocxTemplate("plantillas/plantillafinal.docx")
         doc.render(contexto)
 
