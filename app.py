@@ -9,7 +9,7 @@ app = Flask(__name__)
 
 cred = credentials.Certificate('/etc/secrets/service_account.json')
 firebase_admin.initialize_app(cred, {
-    'storageBucket': 'academico-4a053.appspot.com'
+    'storageBucket': 'academico-4a053.firebasestorage.app'
 })
 db = firestore.client()
 bucket = storage.bucket()
@@ -79,7 +79,7 @@ def generar_pao_directo():
                 contexto[f'observacion_accionesDeMejora_{num}_m{idx + 1}'] = materia_data.get('accionesMejora', '') if materia_data else ''
                 contexto[f'observacion_resultadosObtenidos_{num}_m{idx + 1}'] = materia_data.get('resultadosObtenidos', '') if materia_data else ''
 
-        doc = DocxTemplate("plantilla/plantillafinal.docx")
+        doc = DocxTemplate("plantillas/plantillafinal.docx")
         doc.render(contexto)
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
