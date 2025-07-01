@@ -4,6 +4,7 @@ import firebase_admin
 from firebase_admin import credentials, firestore, storage
 import os
 import tempfile
+import requests
 
 app = Flask(__name__)
 
@@ -32,10 +33,10 @@ def generar_pao_directo():
         paralelos = pao_data.get('paralelos', [])
         paralelos_str = '-'.join(paralelos) if paralelos else ''
 
-        # Buscar tutor asignado a este PAO
         tutor_query = db.collection('usuarios').where('paoID', '==', pao_id).where('rol', '==', 'tutor').limit(1).get()
         if not tutor_query:
             return jsonify({'error': 'No se encontró tutor asignado a este PAO'}), 404
+
         nombre_tutor = tutor_query[0].to_dict().get('nombre', '')
 
         contexto = {
@@ -86,11 +87,33 @@ def generar_pao_directo():
             doc.save(tmp.name)
             tmp_path = tmp.name
 
-        blob = bucket.blob(f'documentos_pao/{pao_id}.docx')
-        blob.upload_from_filename(tmp_path)
-        blob.make_public()
+        with open(tmp_path, 'rb') as f:
+            files = {'file': f}
+            headers = {'x-api-key': os.environ.get('PDFCO_API_KEY')}
+            pdfco_url = 'https://api.pdf.co/v1/pdf/convert/from/doc'
 
-        return jsonify({'url_docx': blob.public_url}), 200
+            pdf_response = requests.post(pdfco_url, headers=headers, files=files)
+
+            if pdf_response.status_code != 200:
+                return jsonify({'error': 'Error al convertir a PDF con PDF.co'}), 500
+
+            pdf_result = pdf_response.json()
+            pdf_url_temp = pdf_result.get('url')
+
+            if not pdf_url_temp:
+                return jsonify({'error': 'No se obtuvo URL del PDF'}), 500
+
+            pdf_file = requests.get(pdf_url_temp)
+            pdf_path = tmp_path.replace('.docx', '.pdf')
+
+            with open(pdf_path, 'wb') as pdf_f:
+                pdf_f.write(pdf_file.content)
+
+            blob_pdf = bucket.blob(f'documentos_pao/{pao_id}.pdf')
+            blob_pdf.upload_from_filename(pdf_path)
+            blob_pdf.make_public()
+
+        return jsonify({'url_pdf': blob_pdf.public_url}), 200
 
     except Exception as e:
         import traceback
@@ -98,5 +121,5 @@ def generar_pao_directo():
         return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
+    port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
