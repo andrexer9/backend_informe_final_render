@@ -33,7 +33,8 @@ def generar_pao_directo():
         paralelos = pao_data.get('paralelos', [])
         paralelos_str = '-'.join(paralelos) if paralelos else ''
 
-        tutor_query = db.collection('usuarios').where('paoID', '==', pao_id).where('rol', '==', 'tutor').limit(1).get()
+        # CORREGIDO: buscar con paoTutor en lugar de paoID
+        tutor_query = db.collection('usuarios').where('paoTutor', '==', pao_id).where('rol', '==', 'tutor').limit(1).get()
         if not tutor_query:
             return jsonify({'error': 'No se encontró tutor asignado a este PAO'}), 404
 
