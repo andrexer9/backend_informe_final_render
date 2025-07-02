@@ -33,7 +33,6 @@ def generar_pao_directo():
         paralelos = pao_data.get('paralelos', [])
         paralelos_str = '-'.join(paralelos) if paralelos else ''
 
-        # CORREGIDO: buscar con paoTutor en lugar de paoID
         tutor_query = db.collection('usuarios').where('paoTutor', '==', pao_id).where('rol', '==', 'tutor').limit(1).get()
         if not tutor_query:
             return jsonify({'error': 'No se encontró tutor asignado a este PAO'}), 404
@@ -94,6 +93,10 @@ def generar_pao_directo():
             pdfco_url = 'https://api.pdf.co/v1/pdf/convert/from/doc'
 
             pdf_response = requests.post(pdfco_url, headers=headers, files=files)
+
+            # Prints de depuración para ver respuesta de PDF.co
+            print(f"PDF.co response code: {pdf_response.status_code}")
+            print(f"PDF.co response body: {pdf_response.text}")
 
             if pdf_response.status_code != 200:
                 return jsonify({'error': 'Error al convertir a PDF con PDF.co'}), 500
