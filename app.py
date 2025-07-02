@@ -89,25 +89,67 @@ def generar_pao_directo():
 
         with open(tmp_path, 'rb') as f:
             files = {'file': f}
-            headers = {'x-api-key': os.environ.get('PDFCO_API_KEY')}
-            pdfco_url = 'https://api.pdf.co/v1/pdf/convert/from/doc'
+            headers = {
+                'Authorization': f'Bearer {os.environ.get("CLOUDCONVERT_API_KEY")}'
+            }
+            cloudconvert_url = 'https://api.cloudconvert.com/v2/import/upload'
 
-            pdf_response = requests.post(pdfco_url, headers=headers, files=files)
+            # 1. Subir el archivo a CloudConvert
+            upload_response = requests.post(cloudconvert_url, headers=headers)
+            upload_data = upload_response.json()
+            upload_url = upload_data['data']['url']
 
-            # Prints de depuración para ver respuesta de PDF.co
-            print(f"PDF.co response code: {pdf_response.status_code}")
-            print(f"PDF.co response body: {pdf_response.text}")
+            upload_file_response = requests.put(upload_url, data=f)
+            if upload_file_response.status_code not in [200, 201]:
+                return jsonify({'error': 'Error al subir archivo a CloudConvert'}), 500
 
-            if pdf_response.status_code != 200:
-                return jsonify({'error': 'Error al convertir a PDF con PDF.co'}), 500
+            # 2. Crear el job de conversión
+            job_payload = {
+                "tasks": {
+                    "import": {
+                        "operation": "import/upload"
+                    },
+                    "convert": {
+                        "operation": "convert",
+                        "input": "import",
+                        "output_format": "pdf"
+                    },
+                    "export": {
+                        "operation": "export/url",
+                        "input": "convert"
+                    }
+                }
+            }
 
-            pdf_result = pdf_response.json()
-            pdf_url_temp = pdf_result.get('url')
+            job_response = requests.post(
+                "https://api.cloudconvert.com/v2/jobs",
+                json=job_payload,
+                headers=headers
+            )
 
-            if not pdf_url_temp:
-                return jsonify({'error': 'No se obtuvo URL del PDF'}), 500
+            if job_response.status_code != 201:
+                return jsonify({'error': 'Error al crear job en CloudConvert'}), 500
 
-            pdf_file = requests.get(pdf_url_temp)
+            job_data = job_response.json()
+            job_id = job_data['data']['id']
+
+            # 3. Esperar a que termine el job
+            job_status_url = f"https://api.cloudconvert.com/v2/jobs/{job_id}"
+            while True:
+                status_response = requests.get(job_status_url, headers=headers)
+                status_data = status_response.json()
+                if status_data['data']['status'] == 'finished':
+                    break
+
+            # 4. Obtener URL del PDF
+            export_task = next(
+                task for task in status_data['data']['tasks']
+                if task['name'] == 'export' and task['status'] == 'finished'
+            )
+            pdf_url = export_task['result']['files'][0]['url']
+
+            # 5. Descargar el PDF y subirlo a Firebase
+            pdf_file = requests.get(pdf_url)
             pdf_path = tmp_path.replace('.docx', '.pdf')
 
             with open(pdf_path, 'wb') as pdf_f:
