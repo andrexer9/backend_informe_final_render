@@ -1,3 +1,4 @@
+
 from flask import Flask, request, jsonify
 from docxtpl import DocxTemplate
 import firebase_admin
@@ -5,6 +6,7 @@ from firebase_admin import credentials, firestore, storage
 import os
 import tempfile
 import requests
+import time
 
 app = Flask(__name__)
 
@@ -45,40 +47,8 @@ def generar_pao_directo():
             'paralelo': paralelos_str,
             'carrera': pao_data.get('carrera', ''),
             'ciclo': pao_data.get('ciclo', ''),
-            'nombre_tutor': nombre_tutor,
-            'nombre_aprobado_por': pao_data.get('nombre_aprobado_por', ''),
-            'fecha_presentacion_doc': pao_data.get('fecha_presentacion_doc', ''),
-            'conclusion_1': pao_data.get('conclusion_1', ''),
-            'conclusion_2': pao_data.get('conclusion_2', ''),
-            'conclusion_3': pao_data.get('conclusion_3', ''),
-            'recomendacion_1': pao_data.get('recomendacion_1', ''),
-            'recomendacion_2': pao_data.get('recomendacion_2', ''),
-            'recomendacion_3': pao_data.get('recomendacion_3', '')
+            'nombre_tutor': nombre_tutor
         }
-
-        for idx in range(7):
-            contexto[f'materia_{idx + 1}'] = materias[idx] if idx < len(materias) else ''
-
-        for num in range(1, 11):
-            actividad_ref = db.collection('PAOs').document(pao_id).collection('actividades').document(str(num)).get()
-            if actividad_ref.exists:
-                act_data = actividad_ref.to_dict()
-                contexto[f'fecha_{num}'] = act_data.get('fecha', '')
-                materias_actividad = act_data.get('materias', [])
-            else:
-                contexto[f'fecha_{num}'] = ''
-                materias_actividad = []
-
-            for idx in range(7):
-                nombre_materia = materias[idx] if idx < len(materias) else ''
-                materia_data = next(
-                    (m for m in materias_actividad if m.get('nombre', '').strip().lower() == nombre_materia.strip().lower()),
-                    None
-                )
-
-                contexto[f'observacion_problemasDetectados_{num}_m{idx + 1}'] = materia_data.get('problemasDetectados', '') if materia_data else ''
-                contexto[f'observacion_accionesDeMejora_{num}_m{idx + 1}'] = materia_data.get('accionesMejora', '') if materia_data else ''
-                contexto[f'observacion_resultadosObtenidos_{num}_m{idx + 1}'] = materia_data.get('resultadosObtenidos', '') if materia_data else ''
 
         doc = DocxTemplate("plantillas/plantillafinal.docx")
         doc.render(contexto)
@@ -92,10 +62,7 @@ def generar_pao_directo():
             headers = {
                 'Authorization': f'Bearer {os.environ.get("CLOUDCONVERT_API_KEY")}'
             }
-            cloudconvert_url = 'https://api.cloudconvert.com/v2/import/upload'
-
-            # 1. Subir el archivo a CloudConvert
-            upload_response = requests.post(cloudconvert_url, headers=headers)
+            upload_response = requests.post('https://api.cloudconvert.com/v2/import/upload', headers=headers)
             upload_data = upload_response.json()
             upload_url = upload_data['data']['url']
 
@@ -103,61 +70,51 @@ def generar_pao_directo():
             if upload_file_response.status_code not in [200, 201]:
                 return jsonify({'error': 'Error al subir archivo a CloudConvert'}), 500
 
-            # 2. Crear el job de conversión
-            job_payload = {
-                "tasks": {
-                    "import": {
-                        "operation": "import/upload"
-                    },
-                    "convert": {
-                        "operation": "convert",
-                        "input": "import",
-                        "output_format": "pdf"
-                    },
-                    "export": {
-                        "operation": "export/url",
-                        "input": "convert"
-                    }
+        job_payload = {
+            "tasks": {
+                "import-my-file": {"operation": "import/upload"},
+                "convert-my-file": {
+                    "operation": "convert",
+                    "input": "import-my-file",
+                    "output_format": "pdf"
+                },
+                "export-my-file": {
+                    "operation": "export/url",
+                    "input": "convert-my-file"
                 }
             }
+        }
 
-            job_response = requests.post(
-                "https://api.cloudconvert.com/v2/jobs",
-                json=job_payload,
-                headers=headers
-            )
+        job_response = requests.post(
+            "https://api.cloudconvert.com/v2/jobs",
+            json=job_payload,
+            headers=headers
+        )
 
-            if job_response.status_code != 201:
-                return jsonify({'error': 'Error al crear job en CloudConvert'}), 500
+        if job_response.status_code not in [200, 201]:
+            return jsonify({'error': 'Error al crear job en CloudConvert'}), 500
 
-            job_data = job_response.json()
-            job_id = job_data['data']['id']
+        job_id = job_response.json()['data']['id']
 
-            # 3. Esperar a que termine el job
-            job_status_url = f"https://api.cloudconvert.com/v2/jobs/{job_id}"
-            while True:
-                status_response = requests.get(job_status_url, headers=headers)
-                status_data = status_response.json()
-                if status_data['data']['status'] == 'finished':
-                    break
+        while True:
+            status_response = requests.get(f"https://api.cloudconvert.com/v2/jobs/{job_id}", headers=headers)
+            status_data = status_response.json()
+            if status_data['data']['status'] == 'finished':
+                break
+            time.sleep(2)
 
-            # 4. Obtener URL del PDF
-            export_task = next(
-                task for task in status_data['data']['tasks']
-                if task['name'] == 'export' and task['status'] == 'finished'
-            )
-            pdf_url = export_task['result']['files'][0]['url']
+        export_task = next(task for task in status_data['data']['tasks'] if task['operation'] == 'export/url' and task['status'] == 'finished')
+        pdf_url = export_task['result']['files'][0]['url']
 
-            # 5. Descargar el PDF y subirlo a Firebase
-            pdf_file = requests.get(pdf_url)
-            pdf_path = tmp_path.replace('.docx', '.pdf')
+        pdf_file = requests.get(pdf_url)
+        pdf_path = tmp_path.replace('.docx', '.pdf')
 
-            with open(pdf_path, 'wb') as pdf_f:
-                pdf_f.write(pdf_file.content)
+        with open(pdf_path, 'wb') as pdf_f:
+            pdf_f.write(pdf_file.content)
 
-            blob_pdf = bucket.blob(f'documentos_pao/{pao_id}.pdf')
-            blob_pdf.upload_from_filename(pdf_path)
-            blob_pdf.make_public()
+        blob_pdf = bucket.blob(f'documentos_pao/{pao_id}.pdf')
+        blob_pdf.upload_from_filename(pdf_path)
+        blob_pdf.make_public()
 
         return jsonify({'url_pdf': blob_pdf.public_url}), 200
 
