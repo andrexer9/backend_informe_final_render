@@ -1,4 +1,3 @@
-
 from flask import Flask, request, jsonify
 from docxtpl import DocxTemplate
 import firebase_admin
@@ -6,7 +5,6 @@ from firebase_admin import credentials, firestore, storage
 import os
 import tempfile
 import requests
-import time
 
 app = Flask(__name__)
 
@@ -57,66 +55,43 @@ def generar_pao_directo():
             doc.save(tmp.name)
             tmp_path = tmp.name
 
+        # Subir el Word a Storage
+        blob_word = bucket.blob(f'documentos_pao/{pao_id}.docx')
+        blob_word.upload_from_filename(tmp_path)
+        blob_word.make_public()
+
+        # Convertir el Word a PDF con PDF.co
         with open(tmp_path, 'rb') as f:
             files = {'file': f}
-            headers = {
-                'Authorization': f'Bearer {os.environ.get("CLOUDCONVERT_API_KEY")}'
-            }
-            upload_response = requests.post('https://api.cloudconvert.com/v2/import/upload', headers=headers)
-            upload_data = upload_response.json()
-            upload_url = upload_data['data']['url']
+            headers = {'x-api-key': os.environ.get('PDFCO_API_KEY')}
+            pdfco_url = 'https://api.pdf.co/v1/pdf/convert/from/doc'
 
-            upload_file_response = requests.put(upload_url, data=f)
-            if upload_file_response.status_code not in [200, 201]:
-                return jsonify({'error': 'Error al subir archivo a CloudConvert'}), 500
+            pdf_response = requests.post(pdfco_url, headers=headers, files=files)
 
-        job_payload = {
-            "tasks": {
-                "import-my-file": {"operation": "import/upload"},
-                "convert-my-file": {
-                    "operation": "convert",
-                    "input": "import-my-file",
-                    "output_format": "pdf"
-                },
-                "export-my-file": {
-                    "operation": "export/url",
-                    "input": "convert-my-file"
-                }
-            }
-        }
+            if pdf_response.status_code != 200:
+                return jsonify({'error': 'Error al convertir a PDF con PDF.co'}), 500
 
-        job_response = requests.post(
-            "https://api.cloudconvert.com/v2/jobs",
-            json=job_payload,
-            headers=headers
-        )
+            pdf_result = pdf_response.json()
+            pdf_url_temp = pdf_result.get('url')
 
-        if job_response.status_code not in [200, 201]:
-            return jsonify({'error': 'Error al crear job en CloudConvert'}), 500
+            if not pdf_url_temp:
+                return jsonify({'error': 'No se obtuvo URL del PDF'}), 500
 
-        job_id = job_response.json()['data']['id']
+            pdf_file = requests.get(pdf_url_temp)
+            pdf_path = tmp_path.replace('.docx', '.pdf')
 
-        while True:
-            status_response = requests.get(f"https://api.cloudconvert.com/v2/jobs/{job_id}", headers=headers)
-            status_data = status_response.json()
-            if status_data['data']['status'] == 'finished':
-                break
-            time.sleep(2)
+            with open(pdf_path, 'wb') as pdf_f:
+                pdf_f.write(pdf_file.content)
 
-        export_task = next(task for task in status_data['data']['tasks'] if task['operation'] == 'export/url' and task['status'] == 'finished')
-        pdf_url = export_task['result']['files'][0]['url']
+            # Subir el PDF a Storage
+            blob_pdf = bucket.blob(f'documentos_pao/{pao_id}.pdf')
+            blob_pdf.upload_from_filename(pdf_path)
+            blob_pdf.make_public()
 
-        pdf_file = requests.get(pdf_url)
-        pdf_path = tmp_path.replace('.docx', '.pdf')
-
-        with open(pdf_path, 'wb') as pdf_f:
-            pdf_f.write(pdf_file.content)
-
-        blob_pdf = bucket.blob(f'documentos_pao/{pao_id}.pdf')
-        blob_pdf.upload_from_filename(pdf_path)
-        blob_pdf.make_public()
-
-        return jsonify({'url_pdf': blob_pdf.public_url}), 200
+        return jsonify({
+            'url_pdf': blob_pdf.public_url,
+            'url_word': blob_word.public_url
+        }), 200
 
     except Exception as e:
         import traceback
@@ -126,3 +101,4 @@ def generar_pao_directo():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host='0.0.0.0', port=port)
+
