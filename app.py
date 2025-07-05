@@ -11,7 +11,7 @@ app = Flask(__name__)
 
 cred = credentials.Certificate('/etc/secrets/service_account.json')
 firebase_admin.initialize_app(cred, {
-    'storageBucket': 'academico-4a053.appspot.com'  # Asegúrate que esté bien escrito
+    'storageBucket': 'academico-4a053.firebasestorage.app'  # Asegúrate que esté bien escrito
 })
 db = firestore.client()
 bucket = storage.bucket()
