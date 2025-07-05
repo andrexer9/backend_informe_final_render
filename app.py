@@ -63,7 +63,7 @@ def generar_pao_directo():
         # Convertir el Word a PDF con PDF.co
         with open(tmp_path, 'rb') as f:
             files = {'file': f}
-            headers = {'x-api-key': os.environ.get('PDFCO_API_KEY')}
+            headers = {'x-api-key':print(f"Clave PDF.co: {os.environ.get('PDFCO_API_KEY')}")}
             pdfco_url = 'https://api.pdf.co/v1/pdf/convert/from/doc'
 
             pdf_response = requests.post(pdfco_url, headers=headers, files=files)
