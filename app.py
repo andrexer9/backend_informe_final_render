@@ -5,6 +5,7 @@ from firebase_admin import credentials, firestore, storage
 import os
 import tempfile
 import requests
+from datetime import timedelta
 
 app = Flask(__name__)
 
@@ -55,19 +56,19 @@ def generar_pao_directo():
             doc.save(tmp.name)
             tmp_path = tmp.name
 
-        blob_word = bucket.blob(f'documentos_pao/{pao_id}.docx')
-        blob_word.upload_from_filename(tmp_path)
+        blob = bucket.blob(f'documentos_pao/{pao_id}.docx')
+        blob.upload_from_filename(tmp_path)
 
-        url_word = f"https://firebasestorage.googleapis.com/v0/b/{bucket.name}/o/documentos_pao%2F{pao_id}.docx?alt=media"
+        signed_url = blob.generate_signed_url(expiration=timedelta(hours=1))
 
-        files = {'url': (None, url_word)}
+        pdfco_url = 'https://api.pdf.co/v1/pdf/convert/from/url'
         headers = {'x-api-key': os.environ.get('PDFCO_API_KEY')}
-        pdfco_url = 'https://api.pdf.co/v1/pdf/convert/from/doc'
+        payload = {'url': signed_url}
 
-        pdf_response = requests.post(pdfco_url, headers=headers, data=files)
+        pdf_response = requests.post(pdfco_url, headers=headers, data=payload)
 
         if pdf_response.status_code != 200:
-            return jsonify({'error': f'Error al convertir a PDF con PDF.co. Detalle: {pdf_response.text}'}), 500
+            return jsonify({'error': 'Error al convertir a PDF con PDF.co'}), 500
 
         pdf_result = pdf_response.json()
         pdf_url_temp = pdf_result.get('url')
@@ -87,7 +88,7 @@ def generar_pao_directo():
 
         return jsonify({
             'url_pdf': blob_pdf.public_url,
-            'url_word': url_word
+            'url_word': blob.public_url
         }), 200
 
     except Exception as e:
