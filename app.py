@@ -69,7 +69,9 @@ def generar_pao_directo():
             pdf_response = requests.post(pdfco_url, headers=headers, files=files)
 
             if pdf_response.status_code != 200:
+                print(pdf_response.text)  # <---- Esto muestra el detalle
                 return jsonify({'error': 'Error al convertir a PDF con PDF.co'}), 500
+
 
             pdf_result = pdf_response.json()
             pdf_url_temp = pdf_result.get('url')
