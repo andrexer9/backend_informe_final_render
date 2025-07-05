@@ -4,14 +4,12 @@ import firebase_admin
 from firebase_admin import credentials, firestore, storage
 import os
 import tempfile
-import requests
-from datetime import timedelta
 
 app = Flask(__name__)
 
 cred = credentials.Certificate('/etc/secrets/service_account.json')
 firebase_admin.initialize_app(cred, {
-    'storageBucket': 'academico-4a053.firebasestorage.app'  # Asegúrate que esté bien escrito
+    'storageBucket': 'academico-4a053.appspot.com'  # Asegúrate que sea el bucket correcto
 })
 db = firestore.client()
 bucket = storage.bucket()
@@ -56,48 +54,11 @@ def generar_pao_directo():
             doc.save(tmp.name)
             tmp_path = tmp.name
 
-        # Subir el Word a Storage
         blob_word = bucket.blob(f'documentos_pao/{pao_id}.docx')
         blob_word.upload_from_filename(tmp_path)
+        blob_word.make_public()
 
-        # Generar URL firmada válida por 15 minutos
-        signed_url = blob_word.generate_signed_url(expiration=timedelta(minutes=15))
-
-        # Enviar a PDF.co usando el signed URL
-        pdfco_url = 'https://api.pdf.co/v1/pdf/convert/from/url'
-        headers = {'x-api-key': os.environ.get('PDFCO_API_KEY')}
-        payload = {
-            'url': signed_url,
-            'name': f'{pao_id}.pdf'
-        }
-
-        pdf_response = requests.post(pdfco_url, headers=headers, json=payload)
-
-        if pdf_response.status_code != 200:
-            print(pdf_response.text)
-            return jsonify({'error': 'Error al convertir a PDF con PDF.co'}), 500
-
-        pdf_result = pdf_response.json()
-        pdf_url_temp = pdf_result.get('url')
-
-        if not pdf_url_temp:
-            return jsonify({'error': 'No se obtuvo URL del PDF'}), 500
-
-        # Descargar PDF y subirlo a Firebase
-        pdf_file = requests.get(pdf_url_temp)
-        pdf_path = tmp_path.replace('.docx', '.pdf')
-
-        with open(pdf_path, 'wb') as pdf_f:
-            pdf_f.write(pdf_file.content)
-
-        blob_pdf = bucket.blob(f'documentos_pao/{pao_id}.pdf')
-        blob_pdf.upload_from_filename(pdf_path)
-        blob_pdf.make_public()
-
-        return jsonify({
-            'url_pdf': blob_pdf.public_url,
-            'url_word': signed_url
-        }), 200
+        return jsonify({'url_word': blob_word.public_url}), 200
 
     except Exception as e:
         import traceback
