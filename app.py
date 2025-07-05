@@ -48,7 +48,6 @@ def generar_pao_directo():
             'nombre_tutor': nombre_tutor
         }
 
-        # Generar el Word
         doc = DocxTemplate("plantillas/plantillafinal.docx")
         doc.render(contexto)
 
@@ -61,46 +60,41 @@ def generar_pao_directo():
         blob_word.upload_from_filename(tmp_path)
         blob_word.make_public()
 
-        # Subir el Word a PDF.co
+        # Convertir Word a PDF con PDF.co
         with open(tmp_path, 'rb') as f:
-            files = {'file': f}
+            files = {
+                'file': (
+                    os.path.basename(tmp_path),
+                    f,
+                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+                )
+            }
             headers = {'x-api-key': os.environ.get('PDFCO_API_KEY')}
-            upload_url = 'https://api.pdf.co/v1/file/upload'
+            pdfco_url = 'https://api.pdf.co/v1/pdf/convert/from/doc'
 
-            upload_response = requests.post(upload_url, headers=headers, files=files)
+            pdf_response = requests.post(pdfco_url, headers=headers, files=files)
 
-            if upload_response.status_code != 200:
-                return jsonify({'error': 'Error al subir archivo a PDF.co'}), 500
+            print(f'Respuesta PDF.co: {pdf_response.text}')  # Debug
 
-            upload_result = upload_response.json()
-            archivo_url = upload_result.get('url')
+            if pdf_response.status_code != 200:
+                return jsonify({'error': f'Error al convertir a PDF con PDF.co. Detalle: {pdf_response.text}'}), 500
 
-        # Convertir el archivo subido a PDF
-        pdfco_url = 'https://api.pdf.co/v1/pdf/convert/from/url'
-        body = {'url': archivo_url}
+            pdf_result = pdf_response.json()
+            pdf_url_temp = pdf_result.get('url')
 
-        pdf_response = requests.post(pdfco_url, headers=headers, json=body)
+            if not pdf_url_temp:
+                return jsonify({'error': 'No se obtuvo URL del PDF'}), 500
 
-        if pdf_response.status_code != 200:
-            return jsonify({'error': 'Error al convertir a PDF con PDF.co'}), 500
+            pdf_file = requests.get(pdf_url_temp)
+            pdf_path = tmp_path.replace('.docx', '.pdf')
 
-        pdf_result = pdf_response.json()
-        pdf_url_temp = pdf_result.get('url')
+            with open(pdf_path, 'wb') as pdf_f:
+                pdf_f.write(pdf_file.content)
 
-        if not pdf_url_temp:
-            return jsonify({'error': 'No se obtuvo URL del PDF'}), 500
-
-        # Descargar el PDF
-        pdf_file = requests.get(pdf_url_temp)
-        pdf_path = tmp_path.replace('.docx', '.pdf')
-
-        with open(pdf_path, 'wb') as pdf_f:
-            pdf_f.write(pdf_file.content)
-
-        # Subir PDF a Storage
-        blob_pdf = bucket.blob(f'documentos_pao/{pao_id}.pdf')
-        blob_pdf.upload_from_filename(pdf_path)
-        blob_pdf.make_public()
+            # Subir PDF a Storage
+            blob_pdf = bucket.blob(f'documentos_pao/{pao_id}.pdf')
+            blob_pdf.upload_from_filename(pdf_path)
+            blob_pdf.make_public()
 
         return jsonify({
             'url_pdf': blob_pdf.public_url,
