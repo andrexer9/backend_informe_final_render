@@ -9,7 +9,7 @@ app = Flask(__name__)
 
 cred = credentials.Certificate('/etc/secrets/service_account.json')
 firebase_admin.initialize_app(cred, {
-    'storageBucket': 'academico-4a053.firebasestorage.app'  # Asegúrate que sea el bucket correcto
+    'storageBucket': 'academico-4a053.firebasestorage.app'
 })
 db = firestore.client()
 bucket = storage.bucket()
@@ -44,8 +44,12 @@ def generar_pao_directo():
             'paralelo': paralelos_str,
             'carrera': pao_data.get('carrera', ''),
             'ciclo': pao_data.get('ciclo', ''),
-            'nombre_tutor': nombre_tutor
+            'nombre_tutor': nombre_tutor,
         }
+
+        # Agregar las materias al contexto
+        for idx in range(7):
+            contexto[f'materia_{idx + 1}'] = materias[idx] if idx < len(materias) else ''
 
         doc = DocxTemplate("plantillas/plantillafinal.docx")
         doc.render(contexto)
@@ -58,7 +62,9 @@ def generar_pao_directo():
         blob_word.upload_from_filename(tmp_path)
         blob_word.make_public()
 
-        return jsonify({'url_word': blob_word.public_url}), 200
+        return jsonify({
+            'url_word': blob_word.public_url
+        }), 200
 
     except Exception as e:
         import traceback
