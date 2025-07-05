@@ -48,6 +48,7 @@ def generar_pao_directo():
             'nombre_tutor': nombre_tutor
         }
 
+        # Generar Word
         doc = DocxTemplate("plantillas/plantillafinal.docx")
         doc.render(contexto)
 
@@ -55,50 +56,46 @@ def generar_pao_directo():
             doc.save(tmp.name)
             tmp_path = tmp.name
 
-        # Subir Word a Storage
+        # Subir Word a Firebase Storage
         blob_word = bucket.blob(f'documentos_pao/{pao_id}.docx')
         blob_word.upload_from_filename(tmp_path)
         blob_word.make_public()
+        url_word = blob_word.public_url
 
-        # Convertir Word a PDF con PDF.co
-        with open(tmp_path, 'rb') as f:
-            files = {
-                'file': (
-                    os.path.basename(tmp_path),
-                    f,
-                    'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-                )
-            }
-            headers = {'x-api-key': os.environ.get('PDFCO_API_KEY')}
-            pdfco_url = 'https://api.pdf.co/v1/pdf/convert/from/doc'
+        # Enviar URL a PDF.co para conversión
+        headers = {'x-api-key': os.environ.get('PDFCO_API_KEY')}
+        pdfco_url = 'https://api.pdf.co/v1/pdf/convert/from/url'
 
-            pdf_response = requests.post(pdfco_url, headers=headers, files=files)
+        payload = {
+            'url': url_word
+        }
 
-            print(f'Respuesta PDF.co: {pdf_response.text}')  # Debug
+        pdf_response = requests.post(pdfco_url, headers=headers, json=payload)
 
-            if pdf_response.status_code != 200:
-                return jsonify({'error': f'Error al convertir a PDF con PDF.co. Detalle: {pdf_response.text}'}), 500
+        if pdf_response.status_code != 200:
+            return jsonify({'error': f'Error al convertir a PDF con PDF.co. Detalle: {pdf_response.text}'}), 500
 
-            pdf_result = pdf_response.json()
-            pdf_url_temp = pdf_result.get('url')
+        pdf_result = pdf_response.json()
+        pdf_url_temp = pdf_result.get('url')
 
-            if not pdf_url_temp:
-                return jsonify({'error': 'No se obtuvo URL del PDF'}), 500
+        if not pdf_url_temp:
+            return jsonify({'error': 'No se obtuvo URL del PDF'}), 500
 
-            pdf_file = requests.get(pdf_url_temp)
-            pdf_path = tmp_path.replace('.docx', '.pdf')
+        # Descargar el PDF generado
+        pdf_file = requests.get(pdf_url_temp)
+        pdf_path = tmp_path.replace('.docx', '.pdf')
 
-            with open(pdf_path, 'wb') as pdf_f:
-                pdf_f.write(pdf_file.content)
+        with open(pdf_path, 'wb') as pdf_f:
+            pdf_f.write(pdf_file.content)
 
-            # Subir PDF a Storage
-            blob_pdf = bucket.blob(f'documentos_pao/{pao_id}.pdf')
-            blob_pdf.upload_from_filename(pdf_path)
-            blob_pdf.make_public()
+        # Subir el PDF a Firebase Storage
+        blob_pdf = bucket.blob(f'documentos_pao/{pao_id}.pdf')
+        blob_pdf.upload_from_filename(pdf_path)
+        blob_pdf.make_public()
 
         return jsonify({
             'url_pdf': blob_pdf.public_url,
-            'url_word': blob_word.public_url
+            'url_word': url_word
         }), 200
 
     except Exception as e:
