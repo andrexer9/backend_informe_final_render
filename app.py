@@ -32,6 +32,9 @@ def generar_pao_directo():
         materias = pao_data.get('materias', [])
         paralelos = pao_data.get('paralelos', [])
         paralelos_str = '-'.join(paralelos) if paralelos else ''
+        ciclo = pao_data.get('ciclo', '')
+        nombre_aprobado_por = pao_data.get('nombre_aprobado_por', '')
+        fechas_actividades = pao_data.get('fechas_actividades', [''] * 10)
 
         tutor_query = db.collection('usuarios').where('paoTutor', '==', pao_id).where('rol', '==', 'tutor').limit(1).get()
         if not tutor_query:
@@ -44,12 +47,16 @@ def generar_pao_directo():
             'pao': pao_data.get('pao', ''),
             'paralelo': paralelos_str,
             'carrera': pao_data.get('carrera', ''),
-            'ciclo': pao_data.get('ciclo', ''),
+            'ciclo': ciclo,
             'nombre_tutor': nombre_tutor,
+            'nombre_aprobado_por': nombre_aprobado_por,
         }
 
         for idx in range(7):
             contexto[f'materia_{idx + 1}'] = materias[idx] if idx < len(materias) else ''
+
+        for idx in range(10):
+            contexto[f'fecha_{idx + 1}'] = fechas_actividades[idx] if idx < len(fechas_actividades) else ''
 
         doc = DocxTemplate("plantillas/plantillafinal.docx")
         doc.render(contexto)
