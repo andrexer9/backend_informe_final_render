@@ -18,7 +18,7 @@ db = firestore.client()
 bucket = storage.bucket()
 
 # Configuración de PDF.co (deberías poner esto en variables de entorno)
-PDF_CO_API_KEY = 'tu_api_key_de_pdf_co'  # Mejor usa os.environ.get('PDF_CO_API_KEY')
+PDF_CO_API_KEY = 'andrexer9@gmail.com_mdkuIY40IwQuhgOqUXW1JEa96Q440UIDk8JWpBQ5q92E94gZ57BrmryjM7qdsVu0'  # Mejor usa os.environ.get('PDF_CO_API_KEY')
 PDF_CO_API_URL = 'https://api.pdf.co/v1'
 
 @app.route('/generar-pao-directo', methods=['POST'])
