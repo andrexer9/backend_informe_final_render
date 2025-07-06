@@ -4,12 +4,13 @@ import firebase_admin
 from firebase_admin import credentials, firestore, storage
 import os
 import tempfile
+import requests
 
 app = Flask(__name__)
 
 cred = credentials.Certificate('/etc/secrets/service_account.json')
 firebase_admin.initialize_app(cred, {
-    'storageBucket': 'academico-4a053.firebasestorage.app'
+    'storageBucket': 'academico-4a053.appspot.com'
 })
 db = firestore.client()
 bucket = storage.bucket()
@@ -47,7 +48,6 @@ def generar_pao_directo():
             'nombre_tutor': nombre_tutor,
         }
 
-        # Agregar las materias al contexto
         for idx in range(7):
             contexto[f'materia_{idx + 1}'] = materias[idx] if idx < len(materias) else ''
 
@@ -62,8 +62,40 @@ def generar_pao_directo():
         blob_word.upload_from_filename(tmp_path)
         blob_word.make_public()
 
+        api_key = 'andrexer9@gmail.com_mdkuIY40IwQuhgOqUXW1JEa96Q440UIDk8JWpBQ5q92E94gZ57BrmryjM7qdsVu0'
+
+        url_api = "https://api.pdf.co/v1/pdf/convert/from/doc"
+        payload = {
+            "url": blob_word.public_url,
+            "name": f"{pao_id}.pdf"
+        }
+        headers = {
+            "x-api-key": api_key
+        }
+
+        response = requests.post(url_api, json=payload, headers=headers)
+        resultado = response.json()
+
+        if not resultado.get("url"):
+            return jsonify({'error': 'Error al convertir a PDF', 'detalle': resultado}), 500
+
+        pdf_url = resultado["url"]
+        pdf_response = requests.get(pdf_url)
+
+        if pdf_response.status_code != 200:
+            return jsonify({'error': 'Error al descargar PDF convertido'}), 500
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
+            tmp_pdf.write(pdf_response.content)
+            tmp_pdf_path = tmp_pdf.name
+
+        blob_pdf = bucket.blob(f'documentos_pao/{pao_id}.pdf')
+        blob_pdf.upload_from_filename(tmp_pdf_path)
+        blob_pdf.make_public()
+
         return jsonify({
-            'url_word': blob_word.public_url
+            'url_word': blob_word.public_url,
+            'url_pdf': blob_pdf.public_url
         }), 200
 
     except Exception as e:
