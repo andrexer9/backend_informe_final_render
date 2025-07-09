@@ -76,7 +76,7 @@ def generar_pao_directo():
         blob_word.upload_from_filename(tmp_path)
         blob_word.make_public()
 
-        api_key = 'andrexer9@gmail.com_mdkuIY40IwQuhgOqUXW1JEa96Q440UIDk8JWpBQ5q92E94gZ57BrmryjM7qdsVu0'
+        api_key = os.getenv('PDFCO_API_KEY', 'andrexer9@gmail.com_mdkuIY40IwQuhgOqUXW1JEa96Q440UIDk8JWpBQ5q92E94gZ57BrmryjM7qdsVu0')
         url_api = "https://api.pdf.co/v1/pdf/convert/from/doc"
         payload = {
             "url": f"{blob_word.public_url}?nocache={unique_id}",
@@ -113,7 +113,8 @@ def generar_pao_directo():
 
         return jsonify({
             'url_word': blob_word.public_url,
-            'url_pdf': blob_pdf.public_url
+            'url_pdf': blob_pdf.public_url,
+            'contexto': contexto
         }), 200
 
     except Exception as e:
