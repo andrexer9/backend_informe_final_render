@@ -5,7 +5,6 @@ from firebase_admin import credentials, firestore, storage
 import os
 import tempfile
 import requests
-import uuid
 
 app = Flask(__name__)
 
@@ -15,10 +14,6 @@ firebase_admin.initialize_app(cred, {
 })
 db = firestore.client()
 bucket = storage.bucket()
-
-@app.route('/ping', methods=['GET'])
-def ping():
-    return 'pong', 200
 
 @app.route('/generar-pao-directo', methods=['POST'])
 def generar_pao_directo():
@@ -66,21 +61,20 @@ def generar_pao_directo():
         doc = DocxTemplate("plantillas/plantillafinals.docx")
         doc.render(contexto)
 
-        unique_id = str(uuid.uuid4())
-
         with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
             doc.save(tmp.name)
             tmp_path = tmp.name
 
-        blob_word = bucket.blob(f'documentos_pao/{pao_id}_{unique_id}.docx')
+        blob_word = bucket.blob(f'documentos_pao/{pao_id}.docx')
         blob_word.upload_from_filename(tmp_path)
         blob_word.make_public()
 
         api_key = 'andrexer9@gmail.com_mdkuIY40IwQuhgOqUXW1JEa96Q440UIDk8JWpBQ5q92E94gZ57BrmryjM7qdsVu0'
+
         url_api = "https://api.pdf.co/v1/pdf/convert/from/doc"
         payload = {
-            "url": f"{blob_word.public_url}?nocache={unique_id}",
-            "name": f"{pao_id}_{unique_id}.pdf"
+            "url": blob_word.public_url,
+            "name": f"{pao_id}.pdf"
         }
         headers = {
             "x-api-key": api_key
@@ -90,26 +84,21 @@ def generar_pao_directo():
         resultado = response.json()
 
         if not resultado.get("url"):
-            os.remove(tmp_path)
             return jsonify({'error': 'Error al convertir a PDF', 'detalle': resultado}), 500
 
         pdf_url = resultado["url"]
         pdf_response = requests.get(pdf_url)
 
         if pdf_response.status_code != 200:
-            os.remove(tmp_path)
             return jsonify({'error': 'Error al descargar PDF convertido'}), 500
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
             tmp_pdf.write(pdf_response.content)
             tmp_pdf_path = tmp_pdf.name
 
-        blob_pdf = bucket.blob(f'documentos_pao/{pao_id}_{unique_id}.pdf')
+        blob_pdf = bucket.blob(f'documentos_pao/{pao_id}.pdf')
         blob_pdf.upload_from_filename(tmp_pdf_path)
         blob_pdf.make_public()
-
-        os.remove(tmp_path)
-        os.remove(tmp_pdf_path)
 
         return jsonify({
             'url_word': blob_word.public_url,
