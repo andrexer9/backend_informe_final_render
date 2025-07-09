@@ -47,6 +47,7 @@ def generar_pao_directo():
 
         nombre_tutor = tutor_query[0].to_dict().get('nombre', '')
 
+        # Armar contexto inicial
         contexto = {
             'pao_id': pao_id,
             'pao': pao_data.get('pao', ''),
@@ -63,19 +64,45 @@ def generar_pao_directo():
         for idx in range(10):
             contexto[f'fecha_{idx + 1}'] = fechas_actividades[idx] if idx < len(fechas_actividades) else ''
 
+        # Incluir observaciones por actividad y materia
+        actividades_ref = db.collection('PAOs').document(pao_id).collection('actividades').stream()
+
+        for doc in actividades_ref:
+            act_id = doc.id  # debe ser "1" al "10"
+            act_data = doc.to_dict()
+            materias_actividad = act_data.get('materias', [])
+            for idx, materia in enumerate(materias_actividad):
+                m_idx = idx + 1
+                contexto[f'observacion_problemasDetectados_{act_id}_m{m_idx}'] = materia.get('problemasDetectados', '')
+                contexto[f'observacion_accionesDeMejora_{act_id}_m{m_idx}'] = materia.get('accionesMejora', '')
+                contexto[f'observacion_resultadosObtenidos_{act_id}_m{m_idx}'] = materia.get('resultadosObtenidos', '')
+
+        # Conclusiones y recomendaciones
+        contexto['conclusion_1'] = pao_data.get('conclusion_1', '')
+        contexto['conclusion_2'] = pao_data.get('conclusion_2', '')
+        contexto['conclusion_3'] = pao_data.get('conclusion_3', '')
+
+        contexto['recomendacion_1'] = pao_data.get('recomendacion_1', '')
+        contexto['recomendacion_2'] = pao_data.get('recomendacion_2', '')
+        contexto['recomendacion_3'] = pao_data.get('recomendacion_3', '')
+
+        contexto['fecha_presentacion_doc'] = pao_data.get('fecha_presentacion_doc', '')
+
+        # Renderizar el documento Word
         doc = DocxTemplate("plantillas/plantillafinal.docx")
         doc.render(contexto)
 
         unique_id = str(uuid.uuid4())
-
         with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
             doc.save(tmp.name)
             tmp_path = tmp.name
 
+        # Subir Word a Firebase Storage
         blob_word = bucket.blob(f'documentos_pao/{pao_id}_{unique_id}.docx')
         blob_word.upload_from_filename(tmp_path)
         blob_word.make_public()
 
+        # Convertir a PDF usando PDF.co
         api_key = os.getenv('PDFCO_API_KEY', 'andrexer9@gmail.com_mdkuIY40IwQuhgOqUXW1JEa96Q440UIDk8JWpBQ5q92E94gZ57BrmryjM7qdsVu0')
         url_api = "https://api.pdf.co/v1/pdf/convert/from/doc"
         payload = {
