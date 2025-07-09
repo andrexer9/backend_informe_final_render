@@ -5,6 +5,7 @@ from firebase_admin import credentials, firestore, storage
 import os
 import tempfile
 import requests
+import uuid  # Para evitar caché
 
 app = Flask(__name__)
 
@@ -73,11 +74,12 @@ def generar_pao_directo():
         blob_word.upload_from_filename(tmp_path)
         blob_word.make_public()
 
+        # Cache buster para PDF.co
+        cache_buster = str(uuid.uuid4())
         api_key = 'andrexer9@gmail.com_mdkuIY40IwQuhgOqUXW1JEa96Q440UIDk8JWpBQ5q92E94gZ57BrmryjM7qdsVu0'
-
         url_api = "https://api.pdf.co/v1/pdf/convert/from/doc"
         payload = {
-            "url": blob_word.public_url,
+            "url": f"{blob_word.public_url}?nocache={cache_buster}",
             "name": f"{pao_id}.pdf"
         }
         headers = {
@@ -88,12 +90,14 @@ def generar_pao_directo():
         resultado = response.json()
 
         if not resultado.get("url"):
+            os.remove(tmp_path)
             return jsonify({'error': 'Error al convertir a PDF', 'detalle': resultado}), 500
 
         pdf_url = resultado["url"]
         pdf_response = requests.get(pdf_url)
 
         if pdf_response.status_code != 200:
+            os.remove(tmp_path)
             return jsonify({'error': 'Error al descargar PDF convertido'}), 500
 
         with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
@@ -103,6 +107,10 @@ def generar_pao_directo():
         blob_pdf = bucket.blob(f'documentos_pao/{pao_id}.pdf')
         blob_pdf.upload_from_filename(tmp_pdf_path)
         blob_pdf.make_public()
+
+        # Eliminar archivos temporales
+        os.remove(tmp_path)
+        os.remove(tmp_pdf_path)
 
         return jsonify({
             'url_word': blob_word.public_url,
