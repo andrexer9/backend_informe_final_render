@@ -15,6 +15,10 @@ firebase_admin.initialize_app(cred, {
 db = firestore.client()
 bucket = storage.bucket()
 
+@app.route('/ping', methods=['GET'])
+def ping():
+    return 'pong', 200
+    
 @app.route('/generar-pao-directo', methods=['POST'])
 def generar_pao_directo():
     try:
