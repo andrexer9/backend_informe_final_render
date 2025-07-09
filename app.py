@@ -63,7 +63,7 @@ def generar_pao_directo():
         for idx in range(10):
             contexto[f'fecha_{idx + 1}'] = fechas_actividades[idx] if idx < len(fechas_actividades) else ''
 
-        doc = DocxTemplate("plantillas/plantillafinal.docx")
+        doc = DocxTemplate("plantillas/plantillafinals.docx")
         doc.render(contexto)
 
         unique_id = str(uuid.uuid4())
